@@ -4,10 +4,6 @@
 
 'use strict';
 
-// importScripts('./lib/dz.js');
-
-// import { DZ } from './lib/dz'
-
 
 class MusicService {
     constructor(accessToken) {
@@ -15,22 +11,27 @@ class MusicService {
     }
 
     async createPlaylist(title) {
-        let uri = `user/me/playlists?title=${title}`;
+        let response = await this.__sendRequest(`user/me/playlists?title=${title}`, 'POST');
 
-        return this.__sendRequest(uri, 'POST');
+        return response;
     }
 
     async addTrackToPlaylist(playlistId, trackId) {
-        return this.__sendRequest(`playlist/${playlistId}/tracks?songs=${trackId}?limit=1`, 'POST');
+        return this.__sendRequest(`playlist/${playlistId}/tracks?songs=${trackId}`, 'POST');
     }
 
-    //TODO: Hardcode!
     async findPlaylist(title) {
         let response = await this.__sendRequest(`user/me/playlists?q=${title}?index=0`);
 
-        return response.data.find(playlist => playlist.title === title);
+        let matchedPlaylist = response.data.find(playlist => playlist.title === title);
 
-        // this.__sendRequest(`user/me/playlists?q=${name}?index=25`);
+        while (!matchedPlaylist && response.next) {
+            response = await fetch(response.next);
+            response = await response.json();
+            matchedPlaylist = response.data.find(playlist => playlist.title === title);
+        }
+
+        return matchedPlaylist;
     }
 
     async searchTrack(title) {
@@ -46,12 +47,12 @@ class MusicService {
     async __sendRequest(action, method = 'GET') {
         let url = 'https://api.deezer.com/' + action + '&access_token=' + this.accessToken;
 
-        console.log(`New ${method} request to`,  encodeURI(url));
+        console.log(`<-- New ${method} request to:\n`,  encodeURI(url));
 
         let response = await fetch(url, { method });
         let data = await response.json();
 
-        console.log(`Server answer with data:`, data);
+        console.log(`--> Server response with data:`, data, '\n');
 
         // OAuthException: invalid OAuth access token.
         if (data.error && data.error.code === 300)
@@ -66,7 +67,9 @@ class MusicService {
 
 async function main({data}) {
     try {
-        console.log('Init evaluation chain with data', data);
+        console.info('----------------------------');
+        console.info('NEW EVALUATION CHAIN STARTED!');
+        console.info('INITIAL DATA: ', JSON.stringify(data));
 
         var service = new MusicService(data.token);
 
@@ -81,7 +84,7 @@ async function main({data}) {
         return postMessage(matchedTrack);
     } catch(error) {
         console.warn(error);
-        return postMessage({ error });
+        // return postMessage({ error });
     }
 }
 
